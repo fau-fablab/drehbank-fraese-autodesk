@@ -75,6 +75,7 @@ var taperFormat = createFormat({decimals:1, scale:DEG});
 var motionblendingFormat = createFormat({decimals:3, forceDecimal:true});
 var axisoffsetFormat = createFormat({decimals:1, forceDecimal:true});
 
+var dOutput = createVariable({}, dFormat);
 var xOutput = createVariable({prefix:"X"}, xFormat);
 var yOutput = createVariable({prefix:"Y"}, yFormat);
 var zOutput = createVariable({prefix:"Z"}, zFormat);
