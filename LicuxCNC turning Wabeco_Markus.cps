@@ -57,6 +57,8 @@ var permittedCommentChars = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.,=_-";
 
 var gFormat = createFormat({prefix:"G", decimals:0});
 var mFormat = createFormat({prefix:"M", decimals:0});
+var dFormat = createFormat({prefix:"D", decimals:1});
+
 
 var spatialFormat = createFormat({decimals:(unit == MM ? 3 : 4), forceDecimal:true});
 var xFormat = createFormat({decimals:(unit == MM ? 3 : 4), forceDecimal:true, scale:2}); // diameter mode
@@ -630,22 +632,35 @@ function onSection() {
         // writeBlock(mFormat.format(clampPrimaryChuck ? 10 : 11));
         // writeBlock(mFormat.format(clampSecondaryChuck ? 110 : 111));
   
+	//begin toni todo
         gSpindleModeModal.reset();
         if (currentSection.getTool().getSpindleMode() == SPINDLE_CONSTANT_SURFACE_SPEED) {
-		  // When Setting 9 is set to INCH, the S value specifies Surface Feet Per Minute. When Setting 9 is set to MM, the S value specifies Surface Meters Per Minute.
-
-		// we have to create a string in form of "Dmaximumspindlevalue" as linuxcnc cant take care of its max. temp itself. it should write D4600 for Fablabs turning machine. // fablabchange
-			var firstpart = "D";
-			var completestring = firstpart.concat(properties.maximumSpindleSpeed);
-		// were done creating this string.
-
-          writeBlock(gSpindleModeModal.format(96), completestring, sOutput.format(tool.surfaceSpeed * ((unit == MM) ? 1/1000.0 : 1/12.0)), mFormat.format(tool.clockwise ? 3 : 4)); // was: tool.clockwise ? 4 : 3 // fablabchange: (switch 3 and 4, add "D", maximumSpindleSpeed)
-          var maximumSpindleSpeed = (tool.maximumSpindleSpeed > 0) ? Math.min(tool.maximumSpindleSpeed, properties.maximumSpindleSpeed) : properties.maximumSpindleSpeed;
-          // writeBlock(gFormat.format(50), sOutput.format(maximumSpindleSpeed));
-          sOutput.reset();
+        var maximumSpindleSpeed = (getParameter("operation:tool_maximumSpindleSpeed") > 0) ? Math.min(getParameter("operation:tool_maximumSpindleSpeed"), properties.maximumSpindleSpeed) : properties.maximumSpindleSpeed;  
+        writeBlock(gSpindleModeModal.format(96), dOutput.format(maximumSpindleSpeed), sOutput.format(tool.surfaceSpeed /1000 * ((unit == MM) ? 1 : 1/12.0)), mFormat.format(tool.clockwise ? 3 : 4));
+  
+        //todo  writeBlock(gFormat.format(50), sOutput.format(maximumSpindleSpeed));
+        sOutput.reset();
         } else {
-          writeBlock(gSpindleModeModal.format(97), sOutput.format(tool.spindleRPM), mFormat.format(tool.clockwise ? 3 : 4));
+        writeBlock(gSpindleModeModal.format(97), sOutput.format(tool.spindleRPM), mFormat.format(tool.clockwise ? 3 : 4));
         }
+        //end toni
+  
+//       gSpindleModeModal.reset();
+//       if (currentSection.getTool().getSpindleMode() == SPINDLE_CONSTANT_SURFACE_SPEED) {
+//		  // When Setting 9 is set to INCH, the S value specifies Surface Feet Per Minute. When Setting 9 is set to MM, the S value specifies Surface Meters Per Minute.
+//
+//		// we have to create a string in form of "Dmaximumspindlevalue" as linuxcnc cant take care of its max. temp itself. it should write D4600 for Fablabs turning machine. // fablabchange
+//			var firstpart = "D";
+//			var completestring = firstpart.concat(properties.maximumSpindleSpeed);
+//		// were done creating this string.
+//
+//          writeBlock(gSpindleModeModal.format(96), completestring, sOutput.format(tool.surfaceSpeed * ((unit == MM) ? 1/1000.0 : 1/12.0)), mFormat.format(tool.clockwise ? 3 : 4)); // was: tool.clockwise ? 4 : 3 // fablabchange: (switch 3 and 4, add "D", maximumSpindleSpeed)
+//          var maximumSpindleSpeed = (tool.maximumSpindleSpeed > 0) ? Math.min(tool.maximumSpindleSpeed, properties.maximumSpindleSpeed) : properties.maximumSpindleSpeed;
+//          // writeBlock(gFormat.format(50), sOutput.format(maximumSpindleSpeed));
+//          sOutput.reset();
+//        } else {
+//          writeBlock(gSpindleModeModal.format(97), sOutput.format(tool.spindleRPM), mFormat.format(tool.clockwise ? 3 : 4));
+//        }
         // wait for spindle here if required
       }
       break;
@@ -671,6 +686,9 @@ function onSection() {
         }
         // writeBlock(mFormat.format(clampPrimaryChuck ? 10 : 11));
         // writeBlock(mFormat.format(clampSecondaryChuck ? 110 : 111));
+        
+
+
   
         gSpindleModeModal.reset();
         if (currentSection.getTool().getSpindleMode() == SPINDLE_CONSTANT_SURFACE_SPEED) {
