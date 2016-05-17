@@ -10,6 +10,8 @@
   FORKID {52A5C3D6-1533-413e-B493-7B93D9E48B30}
 */
 
+// original file name 'emc.cps'
+
 //edited by toni
 
 description = "LinuxCNC";
