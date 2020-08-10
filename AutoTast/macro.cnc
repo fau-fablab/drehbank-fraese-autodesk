@@ -31,7 +31,9 @@
 ;   #4530 Abstand z0 Maschine zu Tisch (positiv, Abstand in mm)
 ;   #4531 Config wurde erfolgreich durchlaufen
 ;   #4540 Speicherplatz fuer Punkte zur Werkstueckerfassung
-;   #4556 Ende des Speicherplatzes zu obiger Zeile
+;   #4555 Ende des Speicherplatzes zu obiger Zeile
+; 	#4556 Start des Punktspeichers Kreis
+;	#4563 Ende des Punktespeichers
 ;   #5000 und hoeher: Sonderbedeutung siehe Handbuch der Steuersoftware
 ; 
 ;Eingaenge auf USBCNC:
@@ -414,7 +416,64 @@ ENDIF
 ENDSUB
 ;***************************************************************************************
 Sub user_8 ; Antasten eines Innenkreises/einer Kreistasche und setzen des XY-Nullpunktes in die Mitte der Kreistasche
-    msg "hier kommt die Innenkreisantastfunktion hin"
+    #3080 = 0
+	#3082 = 0; Index des ersten freien Punktepaars
+	WHILE [#3080 <> 6]
+		#[1+#3080] = #[4556 + #3080]
+		#3080 = [#3080 +1]
+	ENDWHILE
+	
+	#3080 = 0
+	WHILE [#3080 <> 6]
+		IF [[#[4556 + #3080] == -10000000000] AND [#[4556 + #3080 + 1] == -10000000000]]]
+			#3082 = [4556 + #3080]
+			#3080 = 6
+		ELSE
+				#3080 = [#3080 +2]
+		ENDIF
+	ENDWHILE
+	
+	
+	msg "Moegliche Eingabe in Feld 7: 1-4 Punkt erfassen in X+ Y+ X- Y-, 5 Berechnung starten, 6 Punkte löschen"
+	dlgmsg "Folgende Punkte wurde erfasst:" "P1X" 1 "P1Y" 2 "P2X" 3 "P2Y" 4 "P3X" 5 "P3Y" 6 "Input" 7
+	IF [#5398 == 1]
+		#3081 = #7
+		IF [[#3081 > 0] AND [#3081 < 5]]
+			;Punkt erfassen in +X -X +Y -Y
+			IF [[#3081 == 1] OR [#3081 == 3]]
+				; Verfahren in X-Richtung
+				#3083 = 1
+			ELSE 
+				; Verfahren in Y-Richtung
+				#3083 = 3
+			ENDIF 
+			IF [#3081 < 3]
+				; positive Verfahrrichtung
+				#3083 = [#3083 + 0]
+			ELSE 
+				; negative Verfahrrichtung
+				#3083 = [#3083 + 1]
+			ENDIF
+			m503 A[#3083] B25
+			#[#3082] = #3303
+			#[#3082 + 1] = #3304
+		ENDIF
+		IF [#3081 == 5]
+		; Berechnung starten
+			m505 A[#4556] B[#4557] C[#4558] D[#4559] E[#4560] F[#4561]
+			G92.1 ; Zuruecksetzten der Achsen X,Y Werte
+			msg "Angewendete Korrektur, X: "[-1*#301 + #5001]" Y: "Y[-1*#302 +#5002]
+			G92 X[-1*#301 + #5001] Y[-1*#302 +#5002] ; Verschieben des Werkstuecknullpunktes in den Koordinatenursprung
+		ENDIF
+		IF [#3081 == 6]
+			; Punkte loeschen
+			#3080 = 0
+			WHILE [#3080 <> 6]
+				#[4556 + #3080] = -10000000000
+				#3080 = [#3080 +1]
+			ENDWHILE
+		ENDIF
+	ENDIF
 EndSub
 ;***************************************************************************************
 Sub user_9 ; Antasten eines Aussenkreises/ Rundmaterialstuecks das senkrecht auf der XY-Ebene steht (XY-Null == Mittelpunkt)
@@ -953,46 +1012,46 @@ sub m505; Berechnung eines Kreises aus drei Punkten
 ; #301 = X Koordinate Mittelpunkt
 ; #302 = Y Koordinate Mittelpunkt
 msg "Parameter A: "#1" B: "#2" C: "#3" D: "#4" E: "#5" F: "#6
-#5500 = [#1 - #3] ;x12 = x1 - x2
-#5501 = [#1 - #5] ;x13 = x1 - x3 
+#3500 = [#1 - #3] ;x12 = x1 - x2
+#3501 = [#1 - #5] ;x13 = x1 - x3 
 
-#5502 = [#2 - #4] ;y12 = y1 - y2
-#5503 = [#2 - #6] ;y13 = y1 - y3 
+#3502 = [#2 - #4] ;y12 = y1 - y2
+#3503 = [#2 - #6] ;y13 = y1 - y3 
 
-#5504 = [#6 - #2] ;y31 = y3 - y1
-#5505 = [#4 - #2] ;y21 = y2 - y1
+#3504 = [#6 - #2] ;y31 = y3 - y1
+#3505 = [#4 - #2] ;y21 = y2 - y1
 
-#5506 = [#5 - #1] ;x31 = x3 - x1
-#5507 = [#3 - #1] ;x21 = x2 - x1
+#3506 = [#5 - #1] ;x31 = x3 - x1
+#3507 = [#3 - #1] ;x21 = x2 - x1
 
-msg "Berechnet Werte: x12: "#5500" x13: "#5501" y12: "#5502" y13: "#5503
-msg "Berechnet Werte: y31: "#5504" y21: "#5505" x31: "#5506" x21: "#5507
+msg "Berechnet Werte: x12: "#3500" x13: "#3501" y12: "#3502" y13: "#3503
+msg "Berechnet Werte: y31: "#3504" y21: "#3505" x31: "#3506" x21: "#3507
 
-#5508 = [[#1 ** 2] - [#5 ** 2]] ;sx13 x1^2 - x3^2 
-#5509 = [[#2 ** 2] - [#6 ** 2]] ;sy13 y1^2 - y3^2 
+#3508 = [[#1 ** 2] - [#5 ** 2]] ;sx13 x1^2 - x3^2 
+#3509 = [[#2 ** 2] - [#6 ** 2]] ;sy13 y1^2 - y3^2 
 
-#5510 = [[#3 ** 2] - [#1 ** 2]] ;sx21 pow(x2, 2) - pow(x1, 2);
-#5511 = [[#4 ** 2] - [#2 ** 2]] ;sy21 pow(y2, 2) - pow(y1, 2); 
+#3510 = [[#3 ** 2] - [#1 ** 2]] ;sx21 pow(x2, 2) - pow(x1, 2);
+#3511 = [[#4 ** 2] - [#2 ** 2]] ;sy21 pow(y2, 2) - pow(y1, 2); 
 
-msg "Berechnet Werte: sx13: "#5508" sy13: "#5509" sx21: "#5510" sy21: "#5511
+msg "Berechnet Werte: sx13: "#3508" sy13: "#3509" sx21: "#3510" sy21: "#3511
 
-#5512 = [[[#5508 * #5500]+[#5509 * #5500]+[#5510*#5501]+[#5511*#5501]]/[2*[[#5504 * #5500]-[#5505*#5501]]]] ;int f = ((sx13) * (x12) + (sy13) * (x12) + (sx21) * (x13) + (sy21) * (x13)) / (2 * ((y31) * (x12) - (y21) * (x13))); 
-#5513 = [[[#5508 * #5502]+[#5509 * #5502]+[#5510*#5503]+[#5511*#5503]]/[2*[[#5506 * #5502]-[#5507*#5503]]]] ;int g = ((sx13) * (y12) + (sy13) * (y12) + (sx21) * (y13) + (sy21) * (y13)) / (2 * ((x31) * (y12) - (x21) * (y13))); 
+#3512 = [[[#3508 * #3500]+[#3509 * #3500]+[#3510*#3501]+[#3511*#3501]]/[2*[[#3504 * #3500]-[#3505*#3501]]]] ;int f = ((sx13) * (x12) + (sy13) * (x12) + (sx21) * (x13) + (sy21) * (x13)) / (2 * ((y31) * (x12) - (y21) * (x13))); 
+#3513 = [[[#3508 * #3502]+[#3509 * #3502]+[#3510*#3503]+[#3511*#3503]]/[2*[[#3506 * #3502]-[#3507*#3503]]]] ;int g = ((sx13) * (y12) + (sy13) * (y12) + (sx21) * (y13) + (sy21) * (y13)) / (2 * ((x31) * (y12) - (x21) * (y13))); 
 
-#5514 = [[-1 * [#1 ** 2]] - [#2 ** 2] - [2 * #5513 * #1] - [2 * #5512 * #2]] ;c = -pow(x1, 2) - pow(y1, 2) - 2 * g * x1 - 2 * f * y1
+#3514 = [[-1 * [#1 ** 2]] - [#2 ** 2] - [2 * #3513 * #1] - [2 * #3512 * #2]] ;c = -pow(x1, 2) - pow(y1, 2) - 2 * g * x1 - 2 * f * y1
 
-msg "Berechnet Werte: f: "#5512" g: "#5513" c: "#5514
+msg "Berechnet Werte: f: "#3512" g: "#3513" c: "#3514
 ;eqn of circle be x^2 + y^2 + 2*g*x + 2*f*y + c = 0 
 ;where centre is (h = -g, k = -f) and radius r 
 ;as r^2 = h^2 + k^2 - c 
-#5515 = [#5513 * -1] ;h = -g
-#5516 = [#5512 * -1] ;k = -f
-#5517 = [[#5515 * #5515] + [#5516 * #5516] - #5514]  ;sqr_of_r = h * h + k * k - c
+#3515 = [#3513 * -1] ;h = -g
+#3516 = [#3512 * -1] ;k = -f
+#3517 = [[#3515 * #3515] + [#3516 * #3516] - #3514]  ;sqr_of_r = h * h + k * k - c
 
-#5518 = SQRT[#5517] ;float r = sqrt(sqr_of_r);
-#300 = #5518
-#301 = #5515
-#302 = #5516
+#3518 = SQRT[#3517] ;float r = sqrt(sqr_of_r);
+#300 = #3518
+#301 = #3515
+#302 = #3516
 msg "Berechneter Kreis mit Radius r: "#300" und Mittelpunkt ("#301"/"#302")"
 endsub
 
