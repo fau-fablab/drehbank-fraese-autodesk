@@ -11,6 +11,7 @@
 ;***************************************************************************************
 ;Verwendete Variablen
 ;   #30N0...30N9 reserviert  fuer userSubN
+; 	#3N00---3N99 reserviert fuer msg50N
 ;   #3500 INIT
 ;   #4503 Maximale Werkzeuglaenge                                (WZL-Vermessung)
 ;   #4506 Sicherheitshoehe als Maschinenkoordinate        (WZL-Vermessung)
@@ -74,11 +75,11 @@ IF [#3500 == 0] ; INIT
 
     ; Zuruecksetzen der Punktspeicher
     #100 = 0
-WHILE [#100 <> 16]
+	WHILE [#100 <> 16]
         #[4540 + #100] = -10000000000
-#100 = [#100 + 1]
+		#100 = [#100 + 1]
     ENDWHILE
-#100 = 0
+	#100 = 0
 
 ;#5008 = 0 ;Zuruecksetzen der alten Werkzeugnummer, beim Start ist nie ein Werkzeug eingelegt
 
@@ -155,7 +156,7 @@ Sub user_4 ; Werkzeuglaengenmessung mithilfe des fest montierten Laengentasters
         G53 G0 z[#4506]                    ; Sicherheitshoehe 
            G53 G0 x[#5019] y[#5020] ; Fahren ueber die Position des festen Laengentasters
         G53 G0 z[#4527 + #5017 + 10]
-        G53 G38.2 Z[#4527] F50
+        G53 G38.2 Z[#4527] F100
         IF [#5067 == 1]                    ; Wenn Sensor gefunden wurde
              G91 G38.2 Z20 F20
              G90
@@ -232,12 +233,6 @@ msg "Z-Antasten sollte ueber einer in der XY-Ebene flachen Stelle des Werkstueck
 
 Exec ".\\dialogBasic\\dialogBasic.exe" "-b=Ja,Nein -r=1,0 -d=\"Sind die Annahmen zu dem Werkstueck erfuellt (siehe Textkonsole)?\"" 600000
 IF [#5399 == 1] ;OK
-    #1 = 1000;X Wert von Punkt 1
-    #2 = 1000;Y Wert von Punkt 1
-    #3 = 1000;X Wert von Punkt 2
-    #4 = 1000;Y Wert von Punkt 2
-    #5 = 1000;X Wert von Punkt 3
-    #6 = 1000;Y Wert von Punkt 3
     #25 = 0;Auswahl
     
     #100 = 0
@@ -247,76 +242,89 @@ IF [#5399 == 1] ;OK
         IF [[#[4540 + #100] <> -10000000000] AND [#[4540 + #100 + 1] <> -10000000000]]
             ;Gueltiger Punkt wurde gefunden
             #101 = [4540 + #100] ; Index des ersten gueltigen Punktes
+			msg "Gueltigen Punkt an Position: "#101" gefunden"
             #100 = 16
         ELSE
             #100 = [#100 + 2]
         ENDIF
     ENDWHILE
-    msg "Gueltigen Punkt an Position: "#101" gefunden"
+    
     IF [[#101 - 4540] == 14]
         ;Das Wrap Around bei den Punkten 7,8 und Punkt 1 wird noch nicht unterstuetzt
         errmsg "Das warp around der Punkte 7 und 8 in Kombination mit Punkt 1 wird noch nicht unterstuetzt. Bitte waehlen Sie eine andere Kombination von Punkten"
     ENDIF
     #100 = 0
-
-    WHILE [#100 <> 6]
-        IF [[#[#101 + #100] <> -10000000000] AND [#[#101 + #100 + 1] <> -10000000000]]
-        ;Gueltiger Punkt wurde gefunden
-        #[1 + #100] = #[#101 + #100]
-        #[2 + #100] = #[#101 + #100 + 1]
-        #103 = 1 ;Es wurden drei auf. folg. Punkte gefunden
-        #100 = [#100 + 2]
-ELSE
-    #103 = 0 ;Es wurden keine drei aufeinanderfolgende gueltige Punkte gefunden
-    #100 = 6 ; Abbruch der Schleife
-ENDIF
-    ENDWHILE
-
+	
+	IF [#101 <> -1]
+		WHILE [#100 <> 6]
+			IF [[#[#101 + #100] <> -10000000000] AND [#[#101 + #100 + 1] <> -10000000000]]
+			;Gueltiger Punkt wurde gefunden
+			#[1 + #100] = #[#101 + #100]
+			#[2 + #100] = #[#101 + #100 + 1]
+			#103 = 1 ;Es wurden drei auf. folg. Punkte gefunden
+			#100 = [#100 + 2]
+			ELSE
+				#103 = 0 ;Es wurden keine drei aufeinanderfolgende gueltige Punkte gefunden
+				#100 = 6 ; Abbruch der Schleife
+			ENDIF
+		ENDWHILE
+	ENDIF
     IF [#103 == 1]
         msg "Drei gueltige Punkte von Position: "#101" an gefunden"
 ELSE
     #101 = 4540
 ENDIF
 #101 = [[#101 - 4540] / 2]
-    
+    msg "Berechneter Punkteoffset: "#101
+	msg "Punkt A: "[#[4540 + [#101 * 2]]]
+	msg "Punkt B: "[#[4541 + [#101 * 2]]]
+	msg "Punkt C: "[#[4542 + [#101 * 2]]]
+	msg "Punkt D: "[#[4543 + [#101 * 2]]]
+	msg "Punkt E: "[#[4544 + [#101 * 2]]]
+	msg "Punkt F: "[#[4545 + [#101 * 2]]]
     LogFile ".\\dialogPoints\\callparameter.txt" 0
     LogMsg "-p=X"#4540"Y"#4541",x"#4542"y"#4543",x"#4544"y"#4545",x"#4546"y"#4547",x"#4548"y"#4549",x"#4550"y"#4551",x"#4552"y"#4553",x"#4554"y"#4555
     Exec ".\\dialogPoints\\CNC.exe" "-f .\\dialogPoints\\callparameter.txt" 600000
-#25 = #5399
+	#25 = #5399
+	msg "Return value from dialog: "#5399
 
-IF [#25 <> 0] ;OK
-        IF [[#25 > 15] OR [#25 < 24]]
-#25 = [#25 - 15]
-        ; Punkt XY soll gesetzt werden
-        ; Funktionsaufruf m503
-        ; Bearbeiten der Rueckgabeparameter
+	IF [#25 <> 0] ;OK
+        IF [[#25 > 15] AND [#25 < 24]]
+			#111 = [#25 - 16] ; Rueckgabe des Punktes im Bereich 1-8
+			; Punkt XY soll gesetzt werden
+			; Funktionsaufruf m503
+			; Bearbeiten der Rueckgabeparameter
 
-        #104 = 0; A Parameter von m503 aufruf
-        #105 = 10; B Parameter von m503 aufruf
-        IF [[#25 == 1] OR [#25 == 2] OR [#25 == 5] OR [#25 == 6]]
-            ; Verfahren in X-Richtung
-            #104 = 1
-        ELSE 
-            ; Verfahren in Y-Richtung
-            #104 = 3
-        ENDIF 
-        IF [#25 < 5]
-            ; positive Verfahrrichtung
-            #104 = [#104 + 0]
-        ELSE 
-            ; negative Verfahrrichtung
-            #104 = [#104 + 1]
-        ENDIF
-        M503 A[#104] B[#105]
-
-#[4540 + [#25 * 2]]  = #300 ; Setzen des X-Wertes aus der Rueckgabe
-#[4540 + [#25 * 2] + 1]  = #301 ; Setzen des Y-Wertes aus der Rueckgabe
-ENDIF
+			#104 = 0; A Parameter von m503 aufruf
+			#105 = 10; B Parameter von m503 aufruf
+			IF [[#111 == 1] OR [#111 == 2] OR [#111 == 5] OR [#111 == 6]]
+				; Verfahren in X-Richtung
+				#104 = 1
+			ELSE 
+				; Verfahren in Y-Richtung
+				#104 = 3
+			ENDIF 
+			IF [#111 < 5]
+				; positive Verfahrrichtung
+				#104 = [#104 + 0]
+			ELSE 
+				; negative Verfahrrichtung
+				#104 = [#104 + 1]
+			ENDIF
+			M503 A[#104] B[#105]
+			IF [#5399 == 1] ; Return value 
+				#111 = [#111 - 1] ; Indizierung mit Index 0 - 1
+				msg "Setze Punkt an Addr: "[4540 + [#111 * 2]]
+				#[4540 + [#111 * 2]]  = #3303 ; Setzen des X-Wertes aus der Rueckgabe
+				#[4540 + [#111 * 2] + 1]  = #3304 ; Setzen des Y-Wertes aus der Rueckgabe
+			ENDIF
+		ENDIF
         IF [#25 == 48]
-; Funktionsaufruf Z Werkstueck messen und auf B setzen
-M504 A[#105] B[0]
+			;Funktionsaufruf Z Werkstueck messen und auf B setzen
+			#105 = 10; B Parameter von m503 aufruf
+			M504 A[#105] B[#4529]
         ENDIF
-        IF [[#25 > 31] OR [#25 < 40]]
+        IF [[#25 > 31] AND [#25 < 40]]
             ; Punkt XY soll geloescht werden
             #[4540 + [ #25-11] * 2] = -10000000000        ; X
             #[4540 + [[#25-11] * 2] +1] = -10000000000  ; Y
@@ -325,32 +333,81 @@ M504 A[#105] B[0]
         IF [#25 == 80]
             ; alle gespeicherten Punkte loeschen
             #106 = 0
-    WHILE [#106 < 16]
-        #[4540 + #106] = -10000000000
-    ENDWHILE
-    msg "alle Koordinatenpunkte aus dem Speicher geloescht"
-ENDIF
+			WHILE [#106 <> 16]
+				#[4540 + #106] = -10000000000
+				#106 = [#106 +1]
+			ENDWHILE
+			msg "alle Koordinatenpunkte aus dem Speicher geloescht"
+		ENDIF
         IF [#25 == 64]
+
+			#107 = -10000000000		
+			#108 = -10000000000	
             ; Berechnung mit den eingegebenen Punkten
             IF [#103 == 1]
                 ;Berechnung des Winkels der Strecke der niedrigeren Punkte (z.B. P1, P2) gegenueber der X bzw. Y Achse
-                M500 A[4540 + [#101 * 2]]  B[4540 + [#101 * 2]] C[4540 + [[#101 + 1] * 2]]  D[4540 + [[#101 + 1] * 2 ]]]  E0 F0 G0 H1
-                #107 = #5399 ;Der Winkel zwischen den ersten beiden Punkten und der Y-Achse
-M500 A[4540 + [#101 * 2]]  B[4540 + [#101 * 2]] C[4540 + [[#101 + 1] * 2]]  D[4540 + [[#101 + 1] * 2 ]]]  E0 F0 G1 H0
-                #108 = #5399 ;Der Winkel zwischen den ersten beiden Punkten und der X-Achse
-                IF [#108 >= #107]
-                    #107 = #108 ; #107 enthaelt nun den passenden Drehwinkel
-                ENDIF
-                ;Berechnung des Werkstuecknullpunktes (eingeschlossener Punkt zwischen Gerade und Punkt)
-                M502 A[4540 + [#101 * 2]]  B[4540 + [#101 * 2]] C[4540 + [[#101 + 1] * 2]]  D[4540 + [[#101 + 1] * 2 ]]] E[4540 + [[#101 + 2] + 1]]  F[4540 + [[#101 + 2] * 2 ]]
-                #109 = #301 ;Werkstuecknullpunktes X
-                #110 = #302 ;Werkstuecknullpunktes Y
-                msg "Berechnete Korrektur, X: "#109" Y: "#108", Rotation: "#107
-                G92 X[#109 * -1] Y[#110 * -1] ; Verschieben des Werkstuecknullpunktes in den Koordinatenursprung
-                G68 X0 Y0 R[#107 * -1]; Rotation um den Koordinatenursprung
-            ELSE
-                Exec ".\\dialogBasic\\runIt.bat" ".\\dialogBasic\\dialogBasic.exe -b=Ja,Nein -r=1,0 -d=\"Es wurden nicht alle benoetigten Punkte eingegeben. Bitte ergaenzen Sie notwendige Punkte\"" 600000
-            ENDIF
+                M500 A[#[4540 + [#101 * 2]]]  B[#[4541 + [#101 * 2]]] C[#[4542 + [[#101] * 2]]]  D[#[4543 + [[#101] * 2]]]  E[#[4542 + [[#101] * 2]]] F[#[4543 + [[#101] * 2]]] G[[#[4542 + [[#101] * 2]]]+100] H[#[4543 + [[#101] * 2]]]
+                IF [#5399 <> -10000000000]
+					msg "Winkelberechnung 1 erfolgreich"
+					#107 = #5399 ;Der Winkel zwischen den ersten beiden Punkten und der Y-Achse
+				ENDIF
+				M500 A[#[4540 + [#101 * 2]]]  B[#[4541 + [#101 * 2]]] C[#[4542 + [[#101] * 2]]]  D[#[4543 + [[#101] * 2]]]  E[#[4542 + [[#101] * 2]]] F[#[4543 + [[#101] * 2]]] G[#[4542 + [[#101] * 2]]] H[[#[4543 + [[#101] * 2]]]+100]
+				IF [#5399 <> -10000000000]
+					msg "Winkelberechnung 2 erfolgreich"
+					#108 = #5399 ;Der Winkel zwischen den ersten beiden Punkten und der X-Achse
+				ENDIF
+				IF [[#107 <> -10000000000] AND [#108 <> -10000000000]]
+						IF [#108 >= #107]
+							#107 = #108 ; #107 enthaelt nun den passenden Drehwinkel
+						ENDIF
+				ELSE
+					IF [#108 <> -10000000000]
+						#107 = #108
+					ENDIF
+				ENDIF
+				IF [#107 <> -10000000000]
+					;Umrechnen von #107 (Winkeldrehung in Grad)
+					#107 = [#107 * 57.2958]
+					WHILE [#107 >= 90.0]
+						#107 = [#107 - 90]
+					ENDWHILE
+					IF [#107 >= 45]
+						#107 = [-1 * [#107 - 90]]
+					ENDIF
+					;Berechnung des Werkstuecknullpunktes (eingeschlossener Punkt zwischen Gerade und Punkt)
+					;Berechnung Ortsvektor X
+					#112 = [#[4540 + [#101 * 2]]] ; X1
+					#113 = [#[4542 + [#101 * 2 ]]] ; X2 
+					#114 = [#[4541 + [#101 * 2 ]]] ; Y1
+					#115 = [#[4543 + [#101 * 2 ]]] ; Y2
+					msg "Berechnung mit den Punkten X1: "#112" Y1: "#114" X2: "#113" Y2: "#115
+					;Berechnung von Nx
+					#116 = [#114 - #115]
+					;Berechnugn von Ny
+					#117 = [#113 - #112]
+					;Berechnung l
+					#118 = SQRT[[#116 ** 2] + [#117 ** 2]]
+					;Berechnung a,b
+					#119 = [#116 / #118]
+					#120 = [#117 / #118]
+					;Berechnung c
+					#121 = [-[[#119 * #112] + [#120 * #114]]]
+					msg "Ergebnis: A: "#119" B: "#120" C: "#121" gegen den Punkt X1: "[#[4544 + [[#101] * 2 ]]]" Y1: "[#[4545 + [[#101] * 2]]]
+					M502 A[#119]  B[#120] C[#121]  D[#[4544 + [[#101] * 2 ]]] E[#[4545 + [[#101] * 2]]]
+					#109 = #3201 ;Werkstuecknullpunktes X
+					#110 = #3202 ;Werkstuecknullpunktes Y
+					msg "Berechnete Korrektur, X: "#109" Y: "#110", Rotation: "#107
+					G69 ; Rotation deaktivieren
+					G92.1 ; Zuruecksetzten der Achsen X,Y Werte
+					msg "Angewendete Korrektur, X: "[-1*#109 + #5001]" Y: "Y[-1*#110 +#5002]", Rotation: "[-1*#107]
+					G92 X[-1*#109 + #5001] Y[-1*#110 +#5002] ; Verschieben des Werkstuecknullpunktes in den Koordinatenursprung
+					G68 X0 Y0 R[#107]; Rotation um den Koordinatenursprung
+				ELSE
+					msg "Es konnte kein Winkel zwischen den Punkten ermittelt werden"
+				ENDIF 				
+			ELSE
+                Exec "\\dialogBasic\\dialogBasic.exe" "-b=Ja,Nein -r=1,0 -d=\"Es wurden nicht alle benoetigten Punkte eingegeben. Bitte ergaenzen Sie notwendige Punkte\"" 600000
+			ENDIF
 ENDIF
 ENDIF
 ENDIF
@@ -368,7 +425,7 @@ Sub user_10 ; Reset der Koordinatenrotation in der XY-Ebene
 ;---------------------------------------------------------------------------------------
     Exec ".\\dialogBasic\\dialogBasic.exe" "-b=Ja,Nein -r=1,0 -d=\"Soll die Rotation des aktuellen Koordinatensystems auf 0 Grad zurückgesetzt werden??\"" 600000
     if [#5399 == 1] ;OK
-        G69 R0
+        G69
     ENDIF
 Endsub
 
@@ -704,11 +761,27 @@ sub m501
         errmsg "Parameter Y is not set at function call m501"
     endif
     if [#24 > 0] THEN
-        #5399 = ATAN[#25]/[#24] 
+			#5100 = [#25 / #24]
+			#5101 = ATAN[#5100]/[1]
+            #5399 = [#5101 * [3.14159265359 / 180]]
+    endif
+	if [[#25] >= 0] THEN
+        if [[#24] < 0] THEN
+			#5100 = [#25 / #24]
+			#5101 = ATAN[#5100]/[1]
+            #5399 = [[[#5101 * [3.14159265359 / 180]] +  3.14159265359]
+        endif
+    endif
+	if [[#25] < 0] THEN
+        if [[#24] < 0] THEN
+            #5100 = [#25 / #24]
+			#5101 = ATAN[#5100]/[1]
+            #5399 = [[[#5101] * [3.14159265359 / 180]] -  3.14159265359]
+        endif
     endif
     if [#24 == 0] THEN
         if [#25 == 0] THEN
-            errmsg "Parameter X and Y is zero, so m501 is undefined"
+            msg "Parameter X and Y is zero, so m501 is undefined"
             #5399 = -10000000000
         endif
         if [[#25] > 0] THEN
@@ -718,47 +791,52 @@ sub m501
             #5399 =  -1.57079632679
         endif
     endif
-    if [[#25] >= 0] THEN
-        if [[#24] < 0] THEN
-            #5399 = [ATAN[#25]/[#24] +  3.14159265359]
-        endif
-    endif
-    if [[#25] < 0] THEN
-        if [[#24] < 0] THEN
-            #5399 = [ATAN[#25]/[#24] -  3.14159265359]
-        endif
-    endif
 endsub
 
 sub m500
 ; CalcAngleWithFourPoints
 ; A=AX B=AY C=BX D=BY E=CX F=CY G=DX H=DY
 ; Diese Funktion berechnet den Winkel zwischen zwei Geraden
-msg "Call of m500 with A ="#1" and B = "#2" and C = "#3" and D = "#4" and E = "#5" and F = "#6" and G = "#7" and H = "#8
-#201 = #1
-#202 = #2
-#203 = #3
-#204 = #4
-#205 = #5
-#206 = #6
-#207 = #7
-#208 = #8
+msg "Call of m500 with A ="#1" and B = "#2" and C = "#3" and D = "#4" and E = "#5" and F = "#6"
+msg "and G = "#7" and H = "#8
+#3001 = #1
+#3002 = #2
+#3003 = #3
+#3004 = #4
+#3005 = #5
+#3006 = #6
+#3007 = #7
+#3008 = #8
+#3015 = 1 ; merker ob valide daten
 
-#100 = [#206 - #202]; CY - AY
-#101 = [#205 - #201]; CX - AX
-m501 X#101 Y#100
-#105 = #5399 ;Store value
-msg "Call of m501 (ext) with X ="#101" and Y = "#100", result: "#5399
+#3009 = [#3006 - #3002]; CY - AY
+#3010 = [#3005 - #3001]; CX - AX
+IF [[#3009 == 0] AND [#3010 == 0]]
+	#3015 = 0
+ELSE
+	m501 X#3010 Y#3009
+	#3011 = #5399 ;Store value
+	msg "Call of m501 (ext) with X ="#3010" and Y = "#3009", result: "#5399
+ENDIF
 
-#103 = [#208 - #204]; DY - BY
-#104 = [#207 - #203]; DX - BX
-msg "#103:"#103"#104:"#104
-m501 X#104 Y#103
-msg "Call of m501 (ext) with X ="#104" and Y = "#103", result: "#5399
+#3012 = [#3008 - #3004]; DY - BY
+#3013 = [#3007 - #3003]; DX - BX
+msg "#3012:"#3012"#3013:"#3013
+IF [[#3012 == 0] AND [#3013 == 0]]
+	#3015 = 0
+ELSE
+	m501 X#3013 Y#3012
+	msg "Call of m501 (ext) with X ="#3013" and Y = "#3012", result: "#5399
+	#3014 = #5399 ;Store value
+ENDIF
 
-#106 = #5399 ;Store value
-
-#5399 = [#106 - #105]
+IF [#3015 == 1]
+	#5399 = [#3014 - #3011]
+	msg "m500 call with return: "#5399
+ELSE
+	#5399 = -10000000000
+	msg "m500 call invalid"
+ENDIF
 endsub
 
 sub m502
@@ -766,28 +844,33 @@ sub m502
 ; A=A0 B=B0 C=c D=PX E=PY
 ; a0 * x + b0 * y +c = 0
 ; P(PX, PY)
-; Gibt Werte in #301 und #302 zurueck
+; Gibt Werte in #3201 und #3202 zurueck
 msg "A0:"#1"B0:"#2"C:"#3"X:"#4"Y:"#5
 #6 = [-1 * [#1 * #4 + #2 * #5 + #3]]
 #7 = [#1 * #1 + #2 * #2]
 #6 = [#6 / #7] ;-1 * (a * x1 + b * y1 + c) / (a * a + b * b)
-#301 = [#6 * #1 + #4]; #6 * a + x1
-#302 = [#6 * #2 + #5]; #6 * b + y1
+#3201 = [#6 * #1 + #4]; #6 * a + x1
+#3202 = [#6 * #2 + #5]; #6 * b + y1
+msg "Return m502 X: "#3201" Y: "#3202
 endsub
 
 Sub m503 ; Anfahren eines Werkstuecks bis der Taster ausloest
 ; Parameter A=Anfahrrichtung (1=+X, 2=-X, 3=+Y, 4=-Y)
 ; Parameter B=Maximaler Anfahrweg
-; Rueckgabe des X und Y Wertes ueber die Register 301 und 302
+; Rueckgabe des X und Y Wertes ueber die Register 3303 und 3304
 IF [[#1 > 4] OR [#1 < 1]]
     DlgMsg "Interner Fehler! Das Macro m503 wurde mit einer ungueltigen Anfahrrichtung ausgefuehrt
+	#5399 = -1 ; Return value 
 ELSE
 IF [[#2 > 25] OR [#2 < 0]]
     DlgMsg "Interner Fehler! Das Macro m503 wurde mit einem ungueltigen Anfahrweg ausgefuehrt
+	#5399 = -1 ; Return value 
 ELSE
     ;Hier kommt die eigentliche Funktion
 msg "Bitte fahren Sie den 3D-Taster in die Naehe des anzutastenen Punktes. Der maximale Abstand darf:"#2" mm betragen und bestaetigen dann mit der Tastenkombination STRG + G"
 m0
+#3301 = #1
+#3302 = #2
     IF [#1 MOD 2 == 0] ; Pruefen ob eine negative Bewegung vorliegt
         #2 = -#2
 ENDIF
@@ -797,13 +880,18 @@ G91 G38.2 x[#2] F50
         #3 = [-#2 / 2]
         G91 G38.2 x#3 F20
         IF [#5067 == 1]                ; Wenn Sensor gefunden wurde
-            #301 = #5061
-            #302 = #5062
+			IF [#1 == 1]
+				#3303 = [#5051 + 1]
+			ELSE
+				#3303 = [#5051 - 1]
+			ENDIF
+            #3304 = #5052
+			#5399 = 1 ; Return value 
         ENDIF
     ELSE
         DlgMsg "FEHLER: 3D-Taster wurde nicht ausgeloest. Wiederholen?"
         IF [#5398 == 1] ;OK
-        m503 A[#1] B[#2]
+        m503 A[#3301] B[#3302]
     ENDIF
     ENDIF 
         ELSE ; Antastung mit Bewegung entlang der Y-Achse
@@ -812,15 +900,21 @@ G91 G38.2 y[#2] F50
         #3 = [-#2 / 2]
         G91 G38.2 y#3 F20
         IF [#5067 == 1]                ; Wenn Sensor gefunden wurde
-            #301 = #5061
-            #302 = #5062
+            #3303 = #5051
+			IF [#1 == 3]
+				#3304 = [#5052 + 1]
+			ELSE
+				#3304 = [#5052 - 1]
+			ENDIF
+			#5399 = 1 ; Return value 
         ENDIF
 
     ELSE
         DlgMsg "FEHLER: 3D-Taster wurde nicht ausgeloest. Wiederholen?"
         IF [#5398 == 1] ;OK
-        m503 A[#1] B[#2]
-    ENDIF
+			m503 A[#3301] B[#3302]
+		ENDIF
+		#5399 = -1 ; Return value 
     ENDIF 
     ENDIF
 ENDIF
@@ -832,19 +926,74 @@ Sub M504 ; Z-Antasten an aktueller Position, keine Rueckgabe von Werten nur Z-Se
 ; Parameter B = Wert auf den die Werkstueckkoordinate Z nach dem Tasten gelegt wird
     IF [#1 < 0]
         errmsg "Ein Abstand darf nicht negativ werden - Sinn??"
-    ELSE
-        G91 G38.2 Z-#1 F50                ; fahre maximal #1 mm nach unten bis der Taster ausloest
+		#5399 = -1 ; Return value 
+	ELSE
+        G91 G38.2 Z-#1 F100                ; fahre maximal #1 mm nach unten bis der Taster ausloest
     IF [#5067 == 1]                    ; Taster ausgeloest
         G91 G38.2 Z#1 F20                ; Taster freifahren
         IF [#5067 == 1]                ; Taster ausgeloest
+			G49 ; Deaktivieren der Toolkompensation
             G92 Z#2                ; Z-Koordinate auf #2 setzen
             G91 G1 F100 Z10            ; bissl wegfahren vom Beruehrpunkt
+			G43 H0; Aktivieren der Kompensation
             msg "Z tasten erfolgreich, auf Z="#2" mm gesetzt"
-        ENDIF
+			#5399 = 1 ; Return value 
+		ENDIF
     ELSE
         errmsg "Taster konnte nicht ausloesen - Entfernung zum Werkstueck ueberschritten?"
-    ENDIF
+		#5399 = -1 ; Return value 
+	ENDIF
     ENDIF
     G90 ; absolute Koordinaten wieder aktivieren
 ENDSUB
+
+sub m505; Berechnung eines Kreises aus drei Punkten
+; Benutzt die Koordinaten der Parameter A=x1 B=y1 C=x2 D=y2 E=x3 F=y3
+; Gibt ueber Parameter #300 den Radius des Kreises zurueck
+; #301 = X Koordinate Mittelpunkt
+; #302 = Y Koordinate Mittelpunkt
+msg "Parameter A: "#1" B: "#2" C: "#3" D: "#4" E: "#5" F: "#6
+#5500 = [#1 - #3] ;x12 = x1 - x2
+#5501 = [#1 - #5] ;x13 = x1 - x3 
+
+#5502 = [#2 - #4] ;y12 = y1 - y2
+#5503 = [#2 - #6] ;y13 = y1 - y3 
+
+#5504 = [#6 - #2] ;y31 = y3 - y1
+#5505 = [#4 - #2] ;y21 = y2 - y1
+
+#5506 = [#5 - #1] ;x31 = x3 - x1
+#5507 = [#3 - #1] ;x21 = x2 - x1
+
+msg "Berechnet Werte: x12: "#5500" x13: "#5501" y12: "#5502" y13: "#5503
+msg "Berechnet Werte: y31: "#5504" y21: "#5505" x31: "#5506" x21: "#5507
+
+#5508 = [[#1 ** 2] - [#5 ** 2]] ;sx13 x1^2 - x3^2 
+#5509 = [[#2 ** 2] - [#6 ** 2]] ;sy13 y1^2 - y3^2 
+
+#5510 = [[#3 ** 2] - [#1 ** 2]] ;sx21 pow(x2, 2) - pow(x1, 2);
+#5511 = [[#4 ** 2] - [#2 ** 2]] ;sy21 pow(y2, 2) - pow(y1, 2); 
+
+msg "Berechnet Werte: sx13: "#5508" sy13: "#5509" sx21: "#5510" sy21: "#5511
+
+#5512 = [[[#5508 * #5500]+[#5509 * #5500]+[#5510*#5501]+[#5511*#5501]]/[2*[[#5504 * #5500]-[#5505*#5501]]]] ;int f = ((sx13) * (x12) + (sy13) * (x12) + (sx21) * (x13) + (sy21) * (x13)) / (2 * ((y31) * (x12) - (y21) * (x13))); 
+#5513 = [[[#5508 * #5502]+[#5509 * #5502]+[#5510*#5503]+[#5511*#5503]]/[2*[[#5506 * #5502]-[#5507*#5503]]]] ;int g = ((sx13) * (y12) + (sy13) * (y12) + (sx21) * (y13) + (sy21) * (y13)) / (2 * ((x31) * (y12) - (x21) * (y13))); 
+
+#5514 = [[-1 * [#1 ** 2]] - [#2 ** 2] - [2 * #5513 * #1] - [2 * #5512 * #2]] ;c = -pow(x1, 2) - pow(y1, 2) - 2 * g * x1 - 2 * f * y1
+
+msg "Berechnet Werte: f: "#5512" g: "#5513" c: "#5514
+;eqn of circle be x^2 + y^2 + 2*g*x + 2*f*y + c = 0 
+;where centre is (h = -g, k = -f) and radius r 
+;as r^2 = h^2 + k^2 - c 
+#5515 = [#5513 * -1] ;h = -g
+#5516 = [#5512 * -1] ;k = -f
+#5517 = [[#5515 * #5515] + [#5516 * #5516] - #5514]  ;sqr_of_r = h * h + k * k - c
+
+#5518 = SQRT[#5517] ;float r = sqrt(sqr_of_r);
+#300 = #5518
+#301 = #5515
+#302 = #5516
+msg "Berechneter Kreis mit Radius r: "#300" und Mittelpunkt ("#301"/"#302")"
+endsub
+
 
